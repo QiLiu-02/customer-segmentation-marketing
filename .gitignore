@@ -1,0 +1,14 @@
+# Data (raw file is large and easy to re-download; not redistributed here)
+data/*.csv
+data/*.zip
+
+# Python / Jupyter
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+.DS_Store
+
+# DuckDB database file (rebuilt by notebook 1)
+*.duckdb
+dashboard/*.csv

@@ -1,0 +1,631 @@
+<title>Worth The Call</title>
+<style>
+  /* Layout concept: one filterable slice at top (KPI row + filters), then three
+     comparison charts (sizes / response rate / effort vs. results) stacked
+     top-to-bottom, then a static reference table of who's in each segment. */
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --ink-3:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --accent:      #2a78d6;
+    --accent-wash: rgba(42,120,214,0.10);
+    --series-2:    #eb6834;
+    --mark-muted:  #cac8bd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:        #0d0d0d;
+      --surface:     #1a1a19;
+      --ink:         #ffffff;
+      --ink-2:       #c3c2b7;
+      --ink-3:       #898781;
+      --grid:        #2c2c2a;
+      --baseline:    #383835;
+      --border:      rgba(255,255,255,0.10);
+      --accent:      #3987e5;
+      --accent-wash: rgba(57,135,229,0.16);
+      --series-2:    #d95926;
+      --mark-muted:  #4b4a44;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:        #0d0d0d;
+    --surface:     #1a1a19;
+    --ink:         #ffffff;
+    --ink-2:       #c3c2b7;
+    --ink-3:       #898781;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    --accent:      #3987e5;
+    --accent-wash: rgba(57,135,229,0.16);
+    --series-2:    #d95926;
+    --mark-muted:  #4b4a44;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 28px 16px 48px; }
+
+  header.top { margin-bottom: 20px; }
+  header.top h1 { font-size: 26px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header.top p { margin: 0; color: var(--ink-2); font-size: 14.5px; max-width: 62ch; line-height: 1.5; }
+
+  .headline {
+    background: var(--accent-wash);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 22px;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink);
+  }
+  .headline strong { font-weight: 700; }
+  .headline .num { color: var(--accent); font-weight: 700; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .stat-tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stat-tile .label { font-size: 12px; color: var(--ink-3); margin-bottom: 6px; }
+  .stat-tile .value { font-size: 26px; font-weight: 650; font-variant-numeric: proportional-nums; }
+  .stat-tile .sub { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+
+  .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 22px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-field { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .filter-row .filter-label { font-size: 12px; color: var(--ink-3); }
+  select.filter-select {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13.5px;
+    font-family: inherit;
+  }
+  select.filter-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .filter-note { font-size: 12px; color: var(--ink-3); margin-left: auto; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px 16px;
+    margin-bottom: 18px;
+  }
+  .card h2 { font-size: 15px; font-weight: 650; margin: 0 0 3px; }
+  .card .card-sub { font-size: 12.5px; color: var(--ink-3); margin: 0 0 16px; }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 14px; }
+  .bar-row { display: grid; grid-template-columns: 128px 1fr 64px; align-items: center; gap: 10px; }
+  .bar-row .row-label { font-size: 12.5px; color: var(--ink-2); text-align: right; line-height: 1.25; }
+  .bar-row.is-accent .row-label { color: var(--ink); font-weight: 600; }
+  .bar-track {
+    position: relative;
+    height: 24px;
+    background: transparent;
+  }
+  .bar-fill {
+    position: absolute; left: 0; top: 4px; height: 16px;
+    background: var(--mark-muted);
+    border-radius: 0 4px 4px 0;
+    transition: width 0.25s ease;
+  }
+  .bar-row.is-accent .bar-fill { background: var(--accent); }
+  .bar-row .row-value { font-size: 13px; font-weight: 600; font-variant-numeric: proportional-nums; }
+  .chart-axis { position: relative; height: 18px; margin: 2px 0 0 138px; }
+  .chart-axis .tick {
+    position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--grid);
+    font-size: 10.5px; color: var(--ink-3); padding-left: 4px; white-space: nowrap;
+  }
+  .avg-line {
+    position: absolute; top: -2px; bottom: -2px; width: 0;
+    border-left: 1px solid var(--ink-3);
+  }
+  .avg-line .avg-tag {
+    position: absolute; top: -14px; left: 3px; font-size: 10px; color: var(--ink-3); white-space: nowrap;
+  }
+
+  .legend { display: flex; gap: 16px; margin-bottom: 14px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  .effort-row { display: grid; grid-template-columns: 148px 1fr 52px 52px; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .effort-row .row-label { font-size: 12.5px; color: var(--ink-2); text-align: right; }
+  .effort-track { display: flex; flex-direction: column; gap: 2px; }
+  .effort-bar { position: relative; height: 10px; }
+  .effort-bar .fill { position: absolute; left: 0; top: 0; height: 10px; border-radius: 0 3px 3px 0; }
+  .effort-bar.contacts .fill { background: var(--accent); }
+  .effort-bar.subs .fill { background: var(--series-2); }
+  .effort-row .pct { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+  .effort-row .pct.contacts-num { color: var(--accent); }
+  .effort-row .pct.subs-num { color: var(--series-2); }
+
+  table.profile { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.profile th, table.profile td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  table.profile th { color: var(--ink-3); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; }
+  table.profile td:first-child, table.profile th:first-child { font-variant-numeric: normal; }
+  table.profile tr.is-accent td { font-weight: 600; }
+  .table-wrap { overflow-x: auto; }
+
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: var(--ink);
+    color: var(--surface);
+    font-size: 12px;
+    padding: 6px 9px;
+    border-radius: 6px;
+    line-height: 1.4;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    max-width: 220px;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .t-val { font-weight: 700; }
+
+  footer.note { font-size: 12px; color: var(--ink-3); margin-top: 8px; line-height: 1.6; }
+  footer.note a { color: var(--ink-2); }
+
+  @media (max-width: 700px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .bar-row { grid-template-columns: 96px 1fr 56px; }
+    .chart-axis { margin-left: 106px; }
+    .effort-row { grid-template-columns: 100px 1fr 44px 44px; }
+    .filter-note { margin-left: 0; width: 100%; }
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <h1>Worth The Call</h1>
+    <p>Every one of the 45,211 people this bank's telemarketing campaign contacted, grouped by
+      engagement history into four segments — and how far a call actually went with each one.</p>
+  </header>
+
+  <div class="headline">
+    Customers who said <strong>yes</strong> to a previous campaign were
+    <strong class="num">7.1&times;</strong> more likely to subscribe than customers never
+    contacted before (<strong>64.7%</strong> vs. <strong>9.2%</strong>) — yet they received only
+    <strong class="num">2.2%</strong> of all contacts made this campaign.
+  </div>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="filter-row">
+    <span class="filter-field">
+      <span class="filter-label">Month</span>
+      <select class="filter-select" id="monthFilter">
+        <option value="all">All months</option>
+      </select>
+    </span>
+    <span class="filter-field">
+      <span class="filter-label">Contact type</span>
+      <select class="filter-select" id="contactFilter">
+        <option value="all">All contact types</option>
+        <option value="cellular">Cellular</option>
+        <option value="telephone">Telephone</option>
+        <option value="unknown">Unknown</option>
+      </select>
+    </span>
+    <span class="filter-note" id="filterNote"></span>
+  </div>
+
+  <div class="charts-grid">
+    <div class="card">
+      <h2>Segment sizes</h2>
+      <p class="card-sub">Customers in the current view, by segment</p>
+      <div class="bar-chart" id="sizeChart"></div>
+      <div class="chart-axis" id="sizeAxis"></div>
+    </div>
+    <div class="card">
+      <h2>Response rate by segment</h2>
+      <p class="card-sub">Share of each segment that subscribed</p>
+      <div class="bar-chart" id="rateChart"></div>
+      <div class="chart-axis" id="rateAxis"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Effort vs. results</h2>
+    <p class="card-sub">Each segment's share of all calls made, next to its share of all subscribers gained</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Share of all contacts</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--series-2)"></span>Share of all subscribers</span>
+    </div>
+    <div id="effortChart"></div>
+  </div>
+
+  <div class="card">
+    <h2>Who's in each segment</h2>
+    <p class="card-sub">Demographics and financial status across the full campaign (not affected by the filters above)</p>
+    <div class="table-wrap">
+      <table class="profile" id="profileTable"></table>
+    </div>
+  </div>
+
+  <footer class="note">
+    Data: UCI Bank Marketing dataset, 45,211 contacts. Segments built with K-means clustering on
+    engagement history (recency, frequency, prior outcome) — see the project notebooks for method
+    and full write-up. "Efficiency index" = a segment's share of all subscribers gained, divided by
+    its share of all contacts made; above 1 means the segment returned more than its share of
+    effort spent on it.
+  </footer>
+</div>
+
+<div class="tooltip" id="tooltip" role="tooltip"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var CROSSTAB = [{"segment_name":"Cold: Never Contacted","month":"jan","month_order":1,"contact":"cellular","n_customers":809,"n_subscribers":76.0,"total_contacts":1298.0},{"segment_name":"Cold: Never Contacted","month":"jan","month_order":1,"contact":"telephone","n_customers":87,"n_subscribers":5.0,"total_contacts":180.0},{"segment_name":"Cold: Never Contacted","month":"jan","month_order":1,"contact":"unknown","n_customers":9,"n_subscribers":1.0,"total_contacts":9.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jan","month_order":1,"contact":"cellular","n_customers":129,"n_subscribers":11.0,"total_contacts":224.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jan","month_order":1,"contact":"telephone","n_customers":16,"n_subscribers":0.0,"total_contacts":43.0},{"segment_name":"Warm: Past No","month":"jan","month_order":1,"contact":"cellular","n_customers":272,"n_subscribers":10.0,"total_contacts":445.0},{"segment_name":"Warm: Past No","month":"jan","month_order":1,"contact":"telephone","n_customers":17,"n_subscribers":0.0,"total_contacts":34.0},{"segment_name":"Warm: Past Success","month":"jan","month_order":1,"contact":"cellular","n_customers":55,"n_subscribers":32.0,"total_contacts":95.0},{"segment_name":"Warm: Past Success","month":"jan","month_order":1,"contact":"telephone","n_customers":9,"n_subscribers":7.0,"total_contacts":18.0},{"segment_name":"Cold: Never Contacted","month":"feb","month_order":2,"contact":"cellular","n_customers":1516,"n_subscribers":228.0,"total_contacts":3569.0},{"segment_name":"Cold: Never Contacted","month":"feb","month_order":2,"contact":"telephone","n_customers":198,"n_subscribers":29.0,"total_contacts":628.0},{"segment_name":"Cold: Never Contacted","month":"feb","month_order":2,"contact":"unknown","n_customers":11,"n_subscribers":3.0,"total_contacts":11.0},{"segment_name":"Warm: Past Mixed Outcome","month":"feb","month_order":2,"contact":"cellular","n_customers":226,"n_subscribers":21.0,"total_contacts":608.0},{"segment_name":"Warm: Past Mixed Outcome","month":"feb","month_order":2,"contact":"telephone","n_customers":25,"n_subscribers":0.0,"total_contacts":101.0},{"segment_name":"Warm: Past Mixed Outcome","month":"feb","month_order":2,"contact":"unknown","n_customers":1,"n_subscribers":0.0,"total_contacts":1.0},{"segment_name":"Warm: Past No","month":"feb","month_order":2,"contact":"cellular","n_customers":487,"n_subscribers":56.0,"total_contacts":1041.0},{"segment_name":"Warm: Past No","month":"feb","month_order":2,"contact":"telephone","n_customers":41,"n_subscribers":4.0,"total_contacts":107.0},{"segment_name":"Warm: Past No","month":"feb","month_order":2,"contact":"unknown","n_customers":1,"n_subscribers":1.0,"total_contacts":1.0},{"segment_name":"Warm: Past Success","month":"feb","month_order":2,"contact":"cellular","n_customers":133,"n_subscribers":94.0,"total_contacts":218.0},{"segment_name":"Warm: Past Success","month":"feb","month_order":2,"contact":"telephone","n_customers":10,"n_subscribers":5.0,"total_contacts":25.0},{"segment_name":"Cold: Never Contacted","month":"mar","month_order":3,"contact":"cellular","n_customers":269,"n_subscribers":141.0,"total_contacts":616.0},{"segment_name":"Cold: Never Contacted","month":"mar","month_order":3,"contact":"telephone","n_customers":30,"n_subscribers":12.0,"total_contacts":97.0},{"segment_name":"Cold: Never Contacted","month":"mar","month_order":3,"contact":"unknown","n_customers":5,"n_subscribers":3.0,"total_contacts":5.0},{"segment_name":"Warm: Past Mixed Outcome","month":"mar","month_order":3,"contact":"cellular","n_customers":33,"n_subscribers":15.0,"total_contacts":70.0},{"segment_name":"Warm: Past Mixed Outcome","month":"mar","month_order":3,"contact":"telephone","n_customers":5,"n_subscribers":2.0,"total_contacts":13.0},{"segment_name":"Warm: Past No","month":"mar","month_order":3,"contact":"cellular","n_customers":66,"n_subscribers":27.0,"total_contacts":132.0},{"segment_name":"Warm: Past No","month":"mar","month_order":3,"contact":"telephone","n_customers":7,"n_subscribers":1.0,"total_contacts":13.0},{"segment_name":"Warm: Past No","month":"mar","month_order":3,"contact":"unknown","n_customers":2,"n_subscribers":1.0,"total_contacts":2.0},{"segment_name":"Warm: Past Success","month":"mar","month_order":3,"contact":"cellular","n_customers":49,"n_subscribers":39.0,"total_contacts":81.0},{"segment_name":"Warm: Past Success","month":"mar","month_order":3,"contact":"telephone","n_customers":11,"n_subscribers":7.0,"total_contacts":23.0},{"segment_name":"Cold: Never Contacted","month":"apr","month_order":4,"contact":"cellular","n_customers":1669,"n_subscribers":359.0,"total_contacts":3197.0},{"segment_name":"Cold: Never Contacted","month":"apr","month_order":4,"contact":"telephone","n_customers":139,"n_subscribers":23.0,"total_contacts":397.0},{"segment_name":"Cold: Never Contacted","month":"apr","month_order":4,"contact":"unknown","n_customers":6,"n_subscribers":5.0,"total_contacts":6.0},{"segment_name":"Warm: Past Mixed Outcome","month":"apr","month_order":4,"contact":"cellular","n_customers":239,"n_subscribers":33.0,"total_contacts":518.0},{"segment_name":"Warm: Past Mixed Outcome","month":"apr","month_order":4,"contact":"telephone","n_customers":13,"n_subscribers":2.0,"total_contacts":44.0},{"segment_name":"Warm: Past No","month":"apr","month_order":4,"contact":"cellular","n_customers":699,"n_subscribers":68.0,"total_contacts":1277.0},{"segment_name":"Warm: Past No","month":"apr","month_order":4,"contact":"telephone","n_customers":38,"n_subscribers":7.0,"total_contacts":83.0},{"segment_name":"Warm: Past Success","month":"apr","month_order":4,"contact":"cellular","n_customers":120,"n_subscribers":73.0,"total_contacts":197.0},{"segment_name":"Warm: Past Success","month":"apr","month_order":4,"contact":"telephone","n_customers":9,"n_subscribers":7.0,"total_contacts":14.0},{"segment_name":"Cold: Never Contacted","month":"may","month_order":5,"contact":"cellular","n_customers":3005,"n_subscribers":345.0,"total_contacts":6726.0},{"segment_name":"Cold: Never Contacted","month":"may","month_order":5,"contact":"telephone","n_customers":276,"n_subscribers":16.0,"total_contacts":933.0},{"segment_name":"Cold: Never Contacted","month":"may","month_order":5,"contact":"unknown","n_customers":7971,"n_subscribers":259.0,"total_contacts":20217.0},{"segment_name":"Warm: Past Mixed Outcome","month":"may","month_order":5,"contact":"cellular","n_customers":540,"n_subscribers":51.0,"total_contacts":1500.0},{"segment_name":"Warm: Past Mixed Outcome","month":"may","month_order":5,"contact":"telephone","n_customers":48,"n_subscribers":1.0,"total_contacts":202.0},{"segment_name":"Warm: Past Mixed Outcome","month":"may","month_order":5,"contact":"unknown","n_customers":3,"n_subscribers":2.0,"total_contacts":3.0},{"segment_name":"Warm: Past No","month":"may","month_order":5,"contact":"cellular","n_customers":1569,"n_subscribers":128.0,"total_contacts":3286.0},{"segment_name":"Warm: Past No","month":"may","month_order":5,"contact":"telephone","n_customers":117,"n_subscribers":3.0,"total_contacts":345.0},{"segment_name":"Warm: Past No","month":"may","month_order":5,"contact":"unknown","n_customers":1,"n_subscribers":0.0,"total_contacts":1.0},{"segment_name":"Warm: Past Success","month":"may","month_order":5,"contact":"cellular","n_customers":217,"n_subscribers":109.0,"total_contacts":430.0},{"segment_name":"Warm: Past Success","month":"may","month_order":5,"contact":"telephone","n_customers":19,"n_subscribers":11.0,"total_contacts":50.0},{"segment_name":"Cold: Never Contacted","month":"jun","month_order":6,"contact":"cellular","n_customers":439,"n_subscribers":176.0,"total_contacts":778.0},{"segment_name":"Cold: Never Contacted","month":"jun","month_order":6,"contact":"telephone","n_customers":58,"n_subscribers":14.0,"total_contacts":153.0},{"segment_name":"Cold: Never Contacted","month":"jun","month_order":6,"contact":"unknown","n_customers":4523,"n_subscribers":205.0,"total_contacts":15239.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jun","month_order":6,"contact":"cellular","n_customers":56,"n_subscribers":27.0,"total_contacts":100.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jun","month_order":6,"contact":"telephone","n_customers":11,"n_subscribers":2.0,"total_contacts":25.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jun","month_order":6,"contact":"unknown","n_customers":3,"n_subscribers":1.0,"total_contacts":3.0},{"segment_name":"Warm: Past No","month":"jun","month_order":6,"contact":"cellular","n_customers":120,"n_subscribers":38.0,"total_contacts":218.0},{"segment_name":"Warm: Past No","month":"jun","month_order":6,"contact":"telephone","n_customers":9,"n_subscribers":4.0,"total_contacts":17.0},{"segment_name":"Warm: Past No","month":"jun","month_order":6,"contact":"unknown","n_customers":4,"n_subscribers":0.0,"total_contacts":4.0},{"segment_name":"Warm: Past Success","month":"jun","month_order":6,"contact":"cellular","n_customers":114,"n_subscribers":79.0,"total_contacts":202.0},{"segment_name":"Warm: Past Success","month":"jun","month_order":6,"contact":"telephone","n_customers":2,"n_subscribers":0.0,"total_contacts":5.0},{"segment_name":"Warm: Past Success","month":"jun","month_order":6,"contact":"unknown","n_customers":2,"n_subscribers":0.0,"total_contacts":2.0},{"segment_name":"Cold: Never Contacted","month":"jul","month_order":7,"contact":"cellular","n_customers":5545,"n_subscribers":436.0,"total_contacts":19268.0},{"segment_name":"Cold: Never Contacted","month":"jul","month_order":7,"contact":"telephone","n_customers":830,"n_subscribers":45.0,"total_contacts":3960.0},{"segment_name":"Cold: Never Contacted","month":"jul","month_order":7,"contact":"unknown","n_customers":266,"n_subscribers":10.0,"total_contacts":538.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jul","month_order":7,"contact":"cellular","n_customers":39,"n_subscribers":24.0,"total_contacts":102.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jul","month_order":7,"contact":"telephone","n_customers":3,"n_subscribers":2.0,"total_contacts":8.0},{"segment_name":"Warm: Past Mixed Outcome","month":"jul","month_order":7,"contact":"unknown","n_customers":4,"n_subscribers":0.0,"total_contacts":4.0},{"segment_name":"Warm: Past No","month":"jul","month_order":7,"contact":"cellular","n_customers":96,"n_subscribers":34.0,"total_contacts":204.0},{"segment_name":"Warm: Past No","month":"jul","month_order":7,"contact":"telephone","n_customers":9,"n_subscribers":4.0,"total_contacts":24.0},{"segment_name":"Warm: Past No","month":"jul","month_order":7,"contact":"unknown","n_customers":4,"n_subscribers":0.0,"total_contacts":4.0},{"segment_name":"Warm: Past Success","month":"jul","month_order":7,"contact":"cellular","n_customers":87,"n_subscribers":61.0,"total_contacts":175.0},{"segment_name":"Warm: Past Success","month":"jul","month_order":7,"contact":"telephone","n_customers":10,"n_subscribers":10.0,"total_contacts":12.0},{"segment_name":"Warm: Past Success","month":"jul","month_order":7,"contact":"unknown","n_customers":2,"n_subscribers":1.0,"total_contacts":2.0},{"segment_name":"Cold: Never Contacted","month":"aug","month_order":8,"contact":"cellular","n_customers":5462,"n_subscribers":430.0,"total_contacts":22492.0},{"segment_name":"Cold: Never Contacted","month":"aug","month_order":8,"contact":"telephone","n_customers":210,"n_subscribers":21.0,"total_contacts":1000.0},{"segment_name":"Cold: Never Contacted","month":"aug","month_order":8,"contact":"unknown","n_customers":45,"n_subscribers":4.0,"total_contacts":65.0},{"segment_name":"Warm: Past Mixed Outcome","month":"aug","month_order":8,"contact":"cellular","n_customers":77,"n_subscribers":29.0,"total_contacts":172.0},{"segment_name":"Warm: Past Mixed Outcome","month":"aug","month_order":8,"contact":"telephone","n_customers":6,"n_subscribers":1.0,"total_contacts":9.0},{"segment_name":"Warm: Past Mixed Outcome","month":"aug","month_order":8,"contact":"unknown","n_customers":3,"n_subscribers":1.0,"total_contacts":3.0},{"segment_name":"Warm: Past No","month":"aug","month_order":8,"contact":"cellular","n_customers":216,"n_subscribers":66.0,"total_contacts":370.0},{"segment_name":"Warm: Past No","month":"aug","month_order":8,"contact":"telephone","n_customers":20,"n_subscribers":4.0,"total_contacts":40.0},{"segment_name":"Warm: Past No","month":"aug","month_order":8,"contact":"unknown","n_customers":1,"n_subscribers":0.0,"total_contacts":1.0},{"segment_name":"Warm: Past Success","month":"aug","month_order":8,"contact":"cellular","n_customers":195,"n_subscribers":126.0,"total_contacts":364.0},{"segment_name":"Warm: Past Success","month":"aug","month_order":8,"contact":"telephone","n_customers":10,"n_subscribers":6.0,"total_contacts":16.0},{"segment_name":"Warm: Past Success","month":"aug","month_order":8,"contact":"unknown","n_customers":2,"n_subscribers":0.0,"total_contacts":2.0},{"segment_name":"Cold: Never Contacted","month":"sep","month_order":9,"contact":"cellular","n_customers":199,"n_subscribers":87.0,"total_contacts":350.0},{"segment_name":"Cold: Never Contacted","month":"sep","month_order":9,"contact":"telephone","n_customers":36,"n_subscribers":13.0,"total_contacts":75.0},{"segment_name":"Cold: Never Contacted","month":"sep","month_order":9,"contact":"unknown","n_customers":31,"n_subscribers":1.0,"total_contacts":31.0},{"segment_name":"Warm: Past Mixed Outcome","month":"sep","month_order":9,"contact":"cellular","n_customers":46,"n_subscribers":22.0,"total_contacts":109.0},{"segment_name":"Warm: Past Mixed Outcome","month":"sep","month_order":9,"contact":"telephone","n_customers":8,"n_subscribers":2.0,"total_contacts":21.0},{"segment_name":"Warm: Past Mixed Outcome","month":"sep","month_order":9,"contact":"unknown","n_customers":7,"n_subscribers":1.0,"total_contacts":7.0},{"segment_name":"Warm: Past No","month":"sep","month_order":9,"contact":"cellular","n_customers":101,"n_subscribers":36.0,"total_contacts":172.0},{"segment_name":"Warm: Past No","month":"sep","month_order":9,"contact":"telephone","n_customers":14,"n_subscribers":4.0,"total_contacts":36.0},{"segment_name":"Warm: Past No","month":"sep","month_order":9,"contact":"unknown","n_customers":5,"n_subscribers":1.0,"total_contacts":5.0},{"segment_name":"Warm: Past Success","month":"sep","month_order":9,"contact":"cellular","n_customers":120,"n_subscribers":96.0,"total_contacts":196.0},{"segment_name":"Warm: Past Success","month":"sep","month_order":9,"contact":"telephone","n_customers":8,"n_subscribers":6.0,"total_contacts":16.0},{"segment_name":"Warm: Past Success","month":"sep","month_order":9,"contact":"unknown","n_customers":4,"n_subscribers":0.0,"total_contacts":4.0},{"segment_name":"Cold: Never Contacted","month":"oct","month_order":10,"contact":"cellular","n_customers":257,"n_subscribers":99.0,"total_contacts":402.0},{"segment_name":"Cold: Never Contacted","month":"oct","month_order":10,"contact":"telephone","n_customers":96,"n_subscribers":40.0,"total_contacts":131.0},{"segment_name":"Cold: Never Contacted","month":"oct","month_order":10,"contact":"unknown","n_customers":44,"n_subscribers":16.0,"total_contacts":44.0},{"segment_name":"Warm: Past Mixed Outcome","month":"oct","month_order":10,"contact":"cellular","n_customers":49,"n_subscribers":18.0,"total_contacts":77.0},{"segment_name":"Warm: Past Mixed Outcome","month":"oct","month_order":10,"contact":"telephone","n_customers":10,"n_subscribers":4.0,"total_contacts":23.0},{"segment_name":"Warm: Past Mixed Outcome","month":"oct","month_order":10,"contact":"unknown","n_customers":2,"n_subscribers":0.0,"total_contacts":2.0},{"segment_name":"Warm: Past No","month":"oct","month_order":10,"contact":"cellular","n_customers":130,"n_subscribers":45.0,"total_contacts":211.0},{"segment_name":"Warm: Past No","month":"oct","month_order":10,"contact":"telephone","n_customers":16,"n_subscribers":6.0,"total_contacts":27.0},{"segment_name":"Warm: Past No","month":"oct","month_order":10,"contact":"unknown","n_customers":3,"n_subscribers":0.0,"total_contacts":3.0},{"segment_name":"Warm: Past Success","month":"oct","month_order":10,"contact":"cellular","n_customers":121,"n_subscribers":87.0,"total_contacts":196.0},{"segment_name":"Warm: Past Success","month":"oct","month_order":10,"contact":"telephone","n_customers":9,"n_subscribers":7.0,"total_contacts":17.0},{"segment_name":"Warm: Past Success","month":"oct","month_order":10,"contact":"unknown","n_customers":1,"n_subscribers":1.0,"total_contacts":1.0},{"segment_name":"Cold: Never Contacted","month":"nov","month_order":11,"contact":"cellular","n_customers":2489,"n_subscribers":203.0,"total_contacts":4721.0},{"segment_name":"Cold: Never Contacted","month":"nov","month_order":11,"contact":"telephone","n_customers":295,"n_subscribers":28.0,"total_contacts":615.0},{"segment_name":"Cold: Never Contacted","month":"nov","month_order":11,"contact":"unknown","n_customers":36,"n_subscribers":11.0,"total_contacts":43.0},{"segment_name":"Warm: Past Mixed Outcome","month":"nov","month_order":11,"contact":"cellular","n_customers":185,"n_subscribers":20.0,"total_contacts":376.0},{"segment_name":"Warm: Past Mixed Outcome","month":"nov","month_order":11,"contact":"telephone","n_customers":23,"n_subscribers":3.0,"total_contacts":74.0},{"segment_name":"Warm: Past Mixed Outcome","month":"nov","month_order":11,"contact":"unknown","n_customers":4,"n_subscribers":0.0,"total_contacts":11.0},{"segment_name":"Warm: Past No","month":"nov","month_order":11,"contact":"cellular","n_customers":739,"n_subscribers":55.0,"total_contacts":1390.0},{"segment_name":"Warm: Past No","month":"nov","month_order":11,"contact":"telephone","n_customers":48,"n_subscribers":2.0,"total_contacts":119.0},{"segment_name":"Warm: Past No","month":"nov","month_order":11,"contact":"unknown","n_customers":10,"n_subscribers":1.0,"total_contacts":15.0},{"segment_name":"Warm: Past Success","month":"nov","month_order":11,"contact":"cellular","n_customers":127,"n_subscribers":73.0,"total_contacts":224.0},{"segment_name":"Warm: Past Success","month":"nov","month_order":11,"contact":"telephone","n_customers":13,"n_subscribers":6.0,"total_contacts":26.0},{"segment_name":"Warm: Past Success","month":"nov","month_order":11,"contact":"unknown","n_customers":1,"n_subscribers":1.0,"total_contacts":1.0},{"segment_name":"Cold: Never Contacted","month":"dec","month_order":12,"contact":"cellular","n_customers":73,"n_subscribers":36.0,"total_contacts":156.0},{"segment_name":"Cold: Never Contacted","month":"dec","month_order":12,"contact":"telephone","n_customers":20,"n_subscribers":6.0,"total_contacts":33.0},{"segment_name":"Cold: Never Contacted","month":"dec","month_order":12,"contact":"unknown","n_customers":3,"n_subscribers":0.0,"total_contacts":3.0},{"segment_name":"Warm: Past Mixed Outcome","month":"dec","month_order":12,"contact":"cellular","n_customers":18,"n_subscribers":9.0,"total_contacts":46.0},{"segment_name":"Warm: Past Mixed Outcome","month":"dec","month_order":12,"contact":"telephone","n_customers":8,"n_subscribers":3.0,"total_contacts":30.0},{"segment_name":"Warm: Past No","month":"dec","month_order":12,"contact":"cellular","n_customers":36,"n_subscribers":10.0,"total_contacts":75.0},{"segment_name":"Warm: Past No","month":"dec","month_order":12,"contact":"telephone","n_customers":5,"n_subscribers":2.0,"total_contacts":10.0},{"segment_name":"Warm: Past Success","month":"dec","month_order":12,"contact":"cellular","n_customers":47,"n_subscribers":31.0,"total_contacts":106.0},{"segment_name":"Warm: Past Success","month":"dec","month_order":12,"contact":"telephone","n_customers":4,"n_subscribers":3.0,"total_contacts":11.0}];
+
+  var SEGMENTS = [
+    { key: "Warm: Past Success",        label: "Warm: Past Success",        short: "Past Success",  accent: true  },
+    { key: "Warm: Past Mixed Outcome",  label: "Warm: Past Mixed Outcome",  short: "Past Mixed",     accent: false },
+    { key: "Warm: Past No",             label: "Warm: Past No",             short: "Past No",        accent: false },
+    { key: "Cold: Never Contacted",     label: "Cold: Never Contacted",     short: "Never Contacted", accent: false }
+  ];
+
+  var PROFILE = [
+    { key: "Warm: Past Success",       age: 43.0, balance: 920, housing: 31.2, personal: 5.4,  tertiary: 41.2, unknownContact: 0.8 },
+    { key: "Warm: Past Mixed Outcome", age: 39.8, balance: 570, housing: 65.2, personal: 14.4, tertiary: 29.6, unknownContact: 1.5 },
+    { key: "Warm: Past No",            age: 40.8, balance: 549, housing: 70.8, personal: 15.8, tertiary: 30.5, unknownContact: 0.6 },
+    { key: "Cold: Never Contacted",    age: 40.9, balance: 414, housing: 54.1, personal: 16.6, tertiary: 28.8, unknownContact: 35.0 }
+  ];
+
+  var MONTHS = [
+    ["jan","Jan"], ["feb","Feb"], ["mar","Mar"], ["apr","Apr"], ["may","May"], ["jun","Jun"],
+    ["jul","Jul"], ["aug","Aug"], ["sep","Sep"], ["oct","Oct"], ["nov","Nov"], ["dec","Dec"]
+  ];
+
+  var fmtInt = function (n) { return Math.round(n).toLocaleString("en-US"); };
+  var fmtPct = function (n, d) { return n.toFixed(d == null ? 1 : d) + "%"; };
+
+  // ---- populate month <select> in calendar order ----
+  var monthSelect = document.getElementById("monthFilter");
+  MONTHS.forEach(function (m) {
+    var opt = document.createElement("option");
+    opt.value = m[0];
+    opt.textContent = m[1];
+    monthSelect.appendChild(opt);
+  });
+
+  // ---- aggregate the crosstab for the current filter selection ----
+  function aggregate(month, contact) {
+    var bySeg = {};
+    SEGMENTS.forEach(function (s) { bySeg[s.key] = { n: 0, subs: 0, contacts: 0 }; });
+    var totalN = 0, totalSubs = 0, totalContacts = 0;
+
+    CROSSTAB.forEach(function (row) {
+      if (month !== "all" && row.month !== month) return;
+      if (contact !== "all" && row.contact !== contact) return;
+      var b = bySeg[row.segment_name];
+      if (!b) return;
+      b.n += row.n_customers;
+      b.subs += row.n_subscribers;
+      b.contacts += row.total_contacts;
+      totalN += row.n_customers;
+      totalSubs += row.n_subscribers;
+      totalContacts += row.total_contacts;
+    });
+
+    var segments = SEGMENTS.map(function (s) {
+      var b = bySeg[s.key];
+      var rate = b.n > 0 ? (100 * b.subs / b.n) : 0;
+      var pctOfN = totalN > 0 ? (100 * b.n / totalN) : 0;
+      var pctOfContacts = totalContacts > 0 ? (100 * b.contacts / totalContacts) : 0;
+      var pctOfSubs = totalSubs > 0 ? (100 * b.subs / totalSubs) : 0;
+      var efficiency = pctOfContacts > 0 ? (pctOfSubs / pctOfContacts) : 0;
+      return {
+        key: s.key, label: s.label, short: s.short, accent: s.accent,
+        n: b.n, subs: b.subs, contacts: b.contacts,
+        rate: rate, pctOfN: pctOfN, pctOfContacts: pctOfContacts, pctOfSubs: pctOfSubs,
+        efficiency: efficiency
+      };
+    });
+
+    var overallRate = totalN > 0 ? (100 * totalSubs / totalN) : 0;
+    var top = segments.slice().sort(function (a, b) { return b.rate - a.rate; })[0];
+
+    return { segments: segments, totalN: totalN, totalSubs: totalSubs, totalContacts: totalContacts, overallRate: overallRate, top: top };
+  }
+
+  // ---- nice axis scale helper ----
+  function niceCeil(max) {
+    if (max <= 0) return 10;
+    var mag = Math.pow(10, Math.floor(Math.log(max) / Math.LN10));
+    var norm = max / mag;
+    var step;
+    if (norm <= 1) step = 1;
+    else if (norm <= 2) step = 2;
+    else if (norm <= 5) step = 5;
+    else step = 10;
+    return step * mag;
+  }
+
+  // ---- tooltip ----
+  var tooltipEl = document.getElementById("tooltip");
+  function showTooltip(evt, html) {
+    tooltipEl.innerHTML = html;
+    tooltipEl.classList.add("show");
+    positionTooltip(evt);
+  }
+  function positionTooltip(evt) {
+    var x = evt.clientX, y = evt.clientY;
+    var rect = tooltipEl.getBoundingClientRect();
+    var left = Math.min(x + 14, window.innerWidth - rect.width - 10);
+    var top = Math.min(y + 14, window.innerHeight - rect.height - 10);
+    tooltipEl.style.left = left + "px";
+    tooltipEl.style.top = top + "px";
+  }
+  function hideTooltip() { tooltipEl.classList.remove("show"); }
+
+  // ---- render: KPI tiles ----
+  function renderKpis(agg) {
+    var el = document.getElementById("kpiRow");
+    el.innerHTML = "";
+    var tiles = [
+      { label: "Customers in view", value: fmtInt(agg.totalN), sub: agg.totalN.toLocaleString("en-US") + " of 45,211 total" },
+      { label: "Response rate", value: fmtPct(agg.overallRate), sub: agg.totalSubs.toLocaleString("en-US") + " subscribed" },
+      { label: "Best segment vs. average", value: (agg.overallRate > 0 ? (agg.top.rate / agg.overallRate).toFixed(1) : "0") + "×", sub: agg.top.short + " (" + fmtPct(agg.top.rate) + ")" }
+    ];
+    tiles.forEach(function (t) {
+      var div = document.createElement("div");
+      div.className = "stat-tile";
+      var l = document.createElement("div"); l.className = "label"; l.textContent = t.label;
+      var v = document.createElement("div"); v.className = "value"; v.textContent = t.value;
+      var s = document.createElement("div"); s.className = "sub"; s.textContent = t.sub;
+      div.appendChild(l); div.appendChild(v); div.appendChild(s);
+      el.appendChild(div);
+    });
+  }
+
+  // ---- render: a simple horizontal bar chart (sizes or rates) ----
+  function renderBarChart(containerId, axisId, rows, opts) {
+    var container = document.getElementById(containerId);
+    container.innerHTML = "";
+    var max = opts.fixedMax != null ? opts.fixedMax : niceCeil(Math.max.apply(null, rows.map(function (r) { return r.value; }).concat([opts.minMax || 0])) * 1.05);
+
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "bar-row" + (r.accent ? " is-accent" : "");
+
+      var label = document.createElement("div");
+      label.className = "row-label";
+      label.textContent = r.short;
+
+      var track = document.createElement("div");
+      track.className = "bar-track";
+      track.tabIndex = 0;
+
+      var fill = document.createElement("div");
+      fill.className = "bar-fill";
+      var widthPct = max > 0 ? Math.max(0.5, (r.value / max) * 100) : 0;
+      fill.style.width = widthPct + "%";
+      track.appendChild(fill);
+
+      if (opts.showAvgLine && opts.avgValue != null) {
+        var avgPct = max > 0 ? (opts.avgValue / max) * 100 : 0;
+        var avg = document.createElement("div");
+        avg.className = "avg-line";
+        avg.style.left = avgPct + "%";
+        row.dataset.hasAvg = "1";
+        track.appendChild(avg);
+      }
+
+      var tipHtml = "<div>" + r.label.replace(/</g, "&lt;") + "</div><div class='t-val'>" +
+        (opts.valueSuffix === "%" ? r.value.toFixed(1) + "%" : fmtInt(r.value)) + "</div>";
+      track.addEventListener("pointerenter", function (e) { showTooltip(e, tipHtml); });
+      track.addEventListener("pointermove", positionTooltip);
+      track.addEventListener("pointerleave", hideTooltip);
+      track.addEventListener("focus", function (e) { showTooltip(e, tipHtml); });
+      track.addEventListener("blur", hideTooltip);
+
+      var value = document.createElement("div");
+      value.className = "row-value";
+      value.textContent = opts.valueSuffix === "%" ? fmtPct(r.value) : fmtInt(r.value);
+
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(value);
+      container.appendChild(row);
+    });
+
+    // axis ticks
+    var axis = document.getElementById(axisId);
+    axis.innerHTML = "";
+    var stepCount = 4;
+    for (var i = 0; i <= stepCount; i++) {
+      var v = (max / stepCount) * i;
+      var tick = document.createElement("div");
+      tick.className = "tick";
+      tick.style.left = (i / stepCount) * 100 + "%";
+      tick.textContent = opts.valueSuffix === "%" ? Math.round(v) + "%" : fmtInt(v);
+      axis.appendChild(tick);
+    }
+    if (opts.showAvgLine && opts.avgValue != null) {
+      var avgTagPct = max > 0 ? (opts.avgValue / max) * 100 : 0;
+      var tagWrap = document.createElement("div");
+      tagWrap.className = "avg-line";
+      tagWrap.style.left = avgTagPct + "%";
+      tagWrap.style.top = "-16px";
+      var tag = document.createElement("div");
+      tag.className = "avg-tag";
+      tag.textContent = "avg " + fmtPct(opts.avgValue);
+      tagWrap.appendChild(tag);
+      axis.appendChild(tagWrap);
+    }
+  }
+
+  // ---- render: effort vs. results grouped bars ----
+  function renderEffortChart(agg) {
+    var el = document.getElementById("effortChart");
+    el.innerHTML = "";
+    var max = niceCeil(Math.max.apply(null, agg.segments.map(function (s) { return Math.max(s.pctOfContacts, s.pctOfSubs); })) * 1.1);
+
+    agg.segments.forEach(function (s) {
+      var row = document.createElement("div");
+      row.className = "effort-row";
+
+      var label = document.createElement("div");
+      label.className = "row-label";
+      label.textContent = s.short;
+
+      var track = document.createElement("div");
+      track.className = "effort-track";
+
+      var contactsBar = document.createElement("div");
+      contactsBar.className = "effort-bar contacts";
+      var cFill = document.createElement("div");
+      cFill.className = "fill";
+      cFill.style.width = (max > 0 ? Math.max(0.5, (s.pctOfContacts / max) * 100) : 0) + "%";
+      contactsBar.appendChild(cFill);
+
+      var subsBar = document.createElement("div");
+      subsBar.className = "effort-bar subs";
+      var sFill = document.createElement("div");
+      sFill.className = "fill";
+      sFill.style.width = (max > 0 ? Math.max(0.5, (s.pctOfSubs / max) * 100) : 0) + "%";
+      subsBar.appendChild(sFill);
+
+      var tip = "<div>" + s.label.replace(/</g, "&lt;") + "</div>" +
+        "<div>Share of contacts: <span class='t-val'>" + s.pctOfContacts.toFixed(1) + "%</span></div>" +
+        "<div>Share of subscribers: <span class='t-val'>" + s.pctOfSubs.toFixed(1) + "%</span></div>" +
+        "<div>Efficiency index: <span class='t-val'>" + s.efficiency.toFixed(2) + "</span></div>";
+      [contactsBar, subsBar].forEach(function (b) {
+        b.tabIndex = 0;
+        b.addEventListener("pointerenter", function (e) { showTooltip(e, tip); });
+        b.addEventListener("pointermove", positionTooltip);
+        b.addEventListener("pointerleave", hideTooltip);
+        b.addEventListener("focus", function (e) { showTooltip(e, tip); });
+        b.addEventListener("blur", hideTooltip);
+      });
+
+      track.appendChild(contactsBar);
+      track.appendChild(subsBar);
+
+      var cPct = document.createElement("div");
+      cPct.className = "pct contacts-num";
+      cPct.textContent = s.pctOfContacts.toFixed(1) + "%";
+
+      var sPct = document.createElement("div");
+      sPct.className = "pct subs-num";
+      sPct.textContent = s.pctOfSubs.toFixed(1) + "%";
+
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(cPct);
+      row.appendChild(sPct);
+      el.appendChild(row);
+    });
+  }
+
+  // ---- static profile table (not filter-reactive) ----
+  function renderProfileTable() {
+    var table = document.getElementById("profileTable");
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["Segment", "Avg. age", "Median balance", "Has housing loan", "Has personal loan", "Tertiary educated", "Unknown phone type"]
+      .forEach(function (h) {
+        var th = document.createElement("th");
+        th.textContent = h;
+        headRow.appendChild(th);
+      });
+    thead.appendChild(headRow);
+
+    var tbody = document.createElement("tbody");
+    PROFILE.forEach(function (p) {
+      var seg = SEGMENTS.filter(function (s) { return s.key === p.key; })[0];
+      var tr = document.createElement("tr");
+      if (seg.accent) tr.className = "is-accent";
+      var cells = [
+        seg.short,
+        p.age.toFixed(1) + " yrs",
+        "€" + fmtInt(p.balance),
+        p.housing.toFixed(1) + "%",
+        p.personal.toFixed(1) + "%",
+        p.tertiary.toFixed(1) + "%",
+        p.unknownContact.toFixed(1) + "%"
+      ];
+      cells.forEach(function (c) {
+        var td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    table.innerHTML = "";
+    table.appendChild(thead);
+    table.appendChild(tbody);
+  }
+
+  // ---- top-level render ----
+  function render() {
+    var month = monthSelect.value;
+    var contact = document.getElementById("contactFilter").value;
+    var agg = aggregate(month, contact);
+
+    var sorted = agg.segments.slice().sort(function (a, b) { return b.rate - a.rate; });
+
+    renderKpis(agg);
+    renderBarChart("sizeChart", "sizeAxis",
+      sorted.map(function (s) { return { short: s.short, label: s.label, value: s.n, accent: s.accent }; }),
+      { valueSuffix: "count" });
+    renderBarChart("rateChart", "rateAxis",
+      sorted.map(function (s) { return { short: s.short, label: s.label, value: s.rate, accent: s.accent }; }),
+      { valueSuffix: "%", showAvgLine: true, avgValue: agg.overallRate, fixedMax: 100 });
+    renderEffortChart(agg);
+
+    var note = document.getElementById("filterNote");
+    var parts = [];
+    if (month !== "all") { parts.push(MONTHS.filter(function (m) { return m[0] === month; })[0][1]); }
+    if (contact !== "all") { parts.push(contact.charAt(0).toUpperCase() + contact.slice(1)); }
+    note.textContent = parts.length ? "Showing: " + parts.join(" · ") : "Showing: all 45,211 customers";
+  }
+
+  monthSelect.addEventListener("change", render);
+  document.getElementById("contactFilter").addEventListener("change", render);
+
+  renderProfileTable();
+  render();
+})();
+</script>
